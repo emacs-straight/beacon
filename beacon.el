@@ -232,13 +232,20 @@ If COLORS is nil, OVERLAY is deleted!"
                              "")
                   'cursor 1000))))
 
+(defun beacon--visual-current-column ()
+  "Get the visual column we are at, takes long lines and visual line mode into account."
+  (save-excursion
+    (let ((current (point)))
+      (beginning-of-visual-line)
+      (- current (point)))))
+
 (defun beacon--after-string-overlay (colors)
   "Put an overlay at point with an after-string property.
 The property's value is a string of spaces with background
 COLORS applied to each one."
   ;; The after-string must not be longer than the remaining columns
   ;; from point to right window-end else it will be wrapped around.
-  (let ((colors (seq-take colors (- (window-width) (current-column) 1))))
+  (let ((colors (seq-take colors (- (window-width) (beacon--visual-current-column) 1))))
     (beacon--ov-put-after-string (beacon--make-overlay 0) colors)))
 
 (defun beacon--ov-at-point ()
@@ -249,8 +256,7 @@ COLORS applied to each one."
 
 (defun beacon--vanish (&rest _)
   "Turn off the beacon."
-  (unless (string-match "\\` \\*\\(temp-buffer\\|Echo Area.*\\)\\*"
-                        (buffer-name))
+  (when (get-buffer-window)
     (when (timerp beacon--timer)
       (cancel-timer beacon--timer))
     (mapc #'delete-overlay beacon--ovs)
@@ -337,6 +343,8 @@ be invoked as a user command or called from lisp code."
   (beacon--vanish)
   (run-hooks 'beacon-before-blink-hook)
   (beacon--shine)
+  (when (timerp beacon--timer)
+    (cancel-timer beacon--timer))
   (setq beacon--timer
         (run-at-time beacon-blink-delay
                      (/ beacon-blink-duration 1.0 beacon-size)
